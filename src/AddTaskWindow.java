@@ -1,19 +1,22 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.awt.event.ActionEvent;
+import java.time.DayOfWeek;
+import java.util.*;
+import java.util.List;
 
 public class AddTaskWindow extends JFrame {
 
     private JTextField titleField;
     private JTextArea descriptionArea;
-    private JTextField endDateField;
+    private JCheckBox[] dayCheckboxes;
+    private JCheckBox loopCheckbox;
+    private Calendar calendar; // referencia al calendario
 
-    public AddTaskWindow() {
+    public AddTaskWindow(Calendar calendar) {
+        this.calendar = calendar;
         setTitle("Add Task");
-        setSize(400, 300);
+        setSize(400, 400);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
@@ -34,27 +37,53 @@ public class AddTaskWindow extends JFrame {
         JScrollPane scroll = new JScrollPane(descriptionArea);
         formPanel.add(scroll);
 
-        // Fecha de fin
-        formPanel.add(new JLabel("Fecha de fin (dd/MM/yyyy):"));
-        endDateField = new JTextField();
-        formPanel.add(endDateField);
+        // Selección de días
+        formPanel.add(new JLabel("Días de la semana:"));
+        JPanel daysPanel = new JPanel(new GridLayout(2, 4));
+        DayOfWeek[] days = DayOfWeek.values();
+        dayCheckboxes = new JCheckBox[days.length];
+        for (int i = 0; i < days.length; i++) {
+            dayCheckboxes[i] = new JCheckBox(days[i].toString());
+            daysPanel.add(dayCheckboxes[i]);
+        }
+        formPanel.add(daysPanel);
+
+        // Checkbox para repetir
+        loopCheckbox = new JCheckBox("Repetir todas las semanas");
+        formPanel.add(loopCheckbox);
 
         mainPanel.add(formPanel, BorderLayout.CENTER);
 
         // Botón crear
         JButton createButton = new JButton("Crear Tarea");
-        createButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                Task newTask = createTaskFromForm();
-                if (newTask != null) {
+        createButton.addActionListener((ActionEvent e) -> {
+            Task newTask = createTaskFromForm();
+            if (newTask != null) {
+                try {
+                    List<Task> tasks = TaskStorage.loadTasks();
+                    tasks.add(newTask);
+                    TaskStorage.saveTasks(tasks);
+
+                    // Actualizar el calendario
+                    if (calendar != null) {
+                        calendar.refreshTasks();
+                    }
+
                     JOptionPane.showMessageDialog(AddTaskWindow.this,
-                            "Tarea creada:\n" + newTask,
+                            "Tarea creada y guardada:\n" + newTask,
                             "Éxito",
                             JOptionPane.INFORMATION_MESSAGE);
                     dispose();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(AddTaskWindow.this,
+                            "Error al guardar la tarea: " + ex.getMessage(),
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
+
+
 
         mainPanel.add(createButton, BorderLayout.SOUTH);
 
@@ -64,27 +93,28 @@ public class AddTaskWindow extends JFrame {
     private Task createTaskFromForm() {
         String title = titleField.getText().trim();
         String description = descriptionArea.getText().trim();
-        String dateStr = endDateField.getText().trim();
 
-        if (title.isEmpty() || description.isEmpty() || dateStr.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Todos los campos son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
+        if (title.isEmpty() || description.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Título y descripción son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
             return null;
         }
 
-        try {
-            Date endDate = new SimpleDateFormat("dd/MM/yyyy").parse(dateStr);
-            return new Task(title, description, endDate);
-        } catch (ParseException e) {
-            JOptionPane.showMessageDialog(this, "Fecha inválida. Usa formato dd/MM/yyyy", "Error", JOptionPane.ERROR_MESSAGE);
-            return null;
-        }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                new AddTaskWindow().setVisible(true);
+        // Recoger días seleccionados
+        Set<DayOfWeek> selectedDays = new HashSet<>();
+        DayOfWeek[] days = DayOfWeek.values();
+        for (int i = 0; i < dayCheckboxes.length; i++) {
+            if (dayCheckboxes[i].isSelected()) {
+                selectedDays.add(days[i]);
             }
-        });
+        }
+
+        if (selectedDays.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Debes seleccionar al menos un día", "Error", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+
+        boolean inLoop = loopCheckbox.isSelected();
+
+        return new Task(title, description, selectedDays, inLoop);
     }
 }

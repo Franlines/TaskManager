@@ -1,70 +1,121 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.util.List;
 
 public class Calendar extends JFrame {
 
+    private JPanel[] dayPanels;
+
     public Calendar() {
-        setTitle("Calendar App");
+        setTitle("Weekly Planner");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(400, 400);
-        setLocationRelativeTo(null);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-        // Fecha actual
-        LocalDate today = LocalDate.now();
-        int year = today.getYear();
-        int month = today.getMonthValue();
-
-        // Panel principal
         JPanel mainPanel = new JPanel(new BorderLayout());
 
-        // Etiqueta con mes y año
-        JLabel monthLabel = new JLabel(today.getMonth().toString() + " " + year, JLabel.CENTER);
-        monthLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
-        mainPanel.add(monthLabel, BorderLayout.NORTH);
-
-        // Panel de calendario (7 columnas: Lunes-Domingo)
-        JPanel calendarPanel = new JPanel(new GridLayout(0, 7, 5, 5));
-
-        // Encabezados de días
+        JPanel weekPanel = new JPanel(new GridLayout(1, 7, 5, 5));
         String[] days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-        for (String day : days) {
-            JLabel dayLabel = new JLabel(day, JLabel.CENTER);
-            dayLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
-            calendarPanel.add(dayLabel);
+        dayPanels = new JPanel[7];
+
+        for (int i = 0; i < days.length; i++) {
+            JPanel dayPanel = new JPanel();
+            dayPanel.setLayout(new BoxLayout(dayPanel, BoxLayout.Y_AXIS));
+            dayPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+
+            JLabel dayLabel = new JLabel(days[i], JLabel.CENTER);
+            dayLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+            dayLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            dayPanel.add(dayLabel);
+
+            dayPanels[i] = dayPanel;
+            weekPanel.add(dayPanel);
         }
 
-        // Calcular en qué día de la semana empieza el mes
-        LocalDate firstDay = LocalDate.of(year, month, 1);
-        int firstDayOfWeek = firstDay.getDayOfWeek().getValue(); // 1 = Monday, 7 = Sunday
-        int daysInMonth = firstDay.lengthOfMonth();
+        mainPanel.add(weekPanel, BorderLayout.CENTER);
 
-        // Rellenar huecos antes del primer día
-        for (int i = 1; i < firstDayOfWeek; i++) {
-            calendarPanel.add(new JLabel(""));
-        }
-
-        // Añadir botones para cada día
-        for (int dayNum = 1; dayNum <= daysInMonth; dayNum++) {
-            JButton dayButton = new JButton(String.valueOf(dayNum));
-            calendarPanel.add(dayButton);
-        }
-
-        // Añadir calendario al panel
-        mainPanel.add(calendarPanel, BorderLayout.CENTER);
-
-        // Botón Add Task
+        // Botón Add Task con doble altura
         JButton addTaskButton = new JButton("Add Task");
-        addTaskButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                AddTaskWindow addTaskWindow = new AddTaskWindow();
-                addTaskWindow.setVisible(true);
-            }
+        addTaskButton.setPreferredSize(new Dimension(0, 80)); // ancho flexible, altura 80px
+        addTaskButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        addTaskButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        addTaskButton.addActionListener(e -> {
+            AddTaskWindow addTaskWindow = new AddTaskWindow(this); // pasamos la referencia
+            addTaskWindow.setVisible(true);
         });
-        mainPanel.add(addTaskButton, BorderLayout.SOUTH);
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
+        buttonPanel.add(Box.createVerticalStrut(10)); // margen superior
+        buttonPanel.add(addTaskButton);
+        buttonPanel.add(Box.createVerticalStrut(10)); // margen inferior
+
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
+
+        loadTasksIntoCalendar();
     }
+
+    private void loadTasksIntoCalendar() {
+        try {
+            List<Task> tasks = TaskStorage.loadTasks(); // cargar siempre desde archivo
+
+            for (Task task : tasks) {
+                // iteramos sobre copia de los días para poder modificar el Set sin problemas
+                for (DayOfWeek day : task.getDays().toArray(new DayOfWeek[0])) {
+                    int index = day.getValue() - 1;
+
+                    JButton taskButton = new JButton(task.getTitle());
+                    taskButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    taskButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+                    taskButton.addActionListener(e -> {
+                        JDialog dialog = new JDialog(this, task.getTitle(), true);
+                        dialog.setLayout(new BoxLayout(dialog.getContentPane(), BoxLayout.Y_AXIS));
+                        dialog.setSize(300, 200);
+                        dialog.setLocationRelativeTo(this);
+
+                        JLabel descriptionLabel = new JLabel("<html>" + task.getDescription() + "</html>");
+                        descriptionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+                        dialog.add(Box.createVerticalStrut(10));
+                        dialog.add(descriptionLabel);
+                        dialog.add(Box.createVerticalStrut(20));
+
+                        dialog.setVisible(true);
+                    });
+
+                    dayPanels[index].add(Box.createVerticalStrut(5));
+                    dayPanels[index].add(taskButton);
+                }
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error cargando tareas: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+
+
+
+
+    public void refreshTasks() {
+        // Primero limpiamos los botones de tareas existentes
+        for (JPanel dayPanel : dayPanels) {
+            // Eliminamos todos los componentes excepto la etiqueta del día
+            Component[] components = dayPanel.getComponents();
+            for (int i = components.length - 1; i >= 0; i--) {
+                if (!(components[i] instanceof JLabel)) {
+                    dayPanel.remove(components[i]);
+                }
+            }
+        }
+        loadTasksIntoCalendar();
+        revalidate();
+        repaint();
+    }
+
 }
