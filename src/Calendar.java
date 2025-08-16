@@ -36,11 +36,11 @@ public class Calendar extends JFrame {
 
         // Botón Add Task con doble altura
         JButton addTaskButton = new JButton("Add Task");
-        addTaskButton.setPreferredSize(new Dimension(0, 80)); // ancho flexible, altura 80px
+        addTaskButton.setPreferredSize(new Dimension(0, 80)); // altura 80px
         addTaskButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
         addTaskButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         addTaskButton.addActionListener(e -> {
-            AddTaskWindow addTaskWindow = new AddTaskWindow(this); // pasamos la referencia
+            AddTaskWindow addTaskWindow = new AddTaskWindow(this); // pasamos referencia al calendario
             addTaskWindow.setVisible(true);
         });
 
@@ -62,33 +62,62 @@ public class Calendar extends JFrame {
             List<Task> tasks = TaskStorage.loadTasks(); // cargar siempre desde archivo
 
             for (Task task : tasks) {
-                // iteramos sobre copia de los días para poder modificar el Set sin problemas
-                for (DayOfWeek day : task.getDays().toArray(new DayOfWeek[0])) {
-                    int index = day.getValue() - 1;
+                DayOfWeek day = task.getDay(); // ahora es solo un día
+                int index = day.getValue() - 1; // Lunes=1 → index 0
 
-                    JButton taskButton = new JButton(task.getTitle());
-                    taskButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-                    taskButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+                JButton taskButton = new JButton(task.getTitle());
+                taskButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+                taskButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-                    taskButton.addActionListener(e -> {
-                        JDialog dialog = new JDialog(this, task.getTitle(), true);
-                        dialog.setLayout(new BoxLayout(dialog.getContentPane(), BoxLayout.Y_AXIS));
-                        dialog.setSize(300, 200);
-                        dialog.setLocationRelativeTo(this);
+                taskButton.addActionListener(e -> {
+                    JDialog dialog = new JDialog(this, task.getTitle(), true);
+                    dialog.setLayout(new BoxLayout(dialog.getContentPane(), BoxLayout.Y_AXIS));
+                    dialog.setSize(300, 200);
+                    dialog.setLocationRelativeTo(this);
 
-                        JLabel descriptionLabel = new JLabel("<html>" + task.getDescription() + "</html>");
-                        descriptionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    JLabel descriptionLabel = new JLabel("<html>" + task.getDescription() + "</html>");
+                    descriptionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-                        dialog.add(Box.createVerticalStrut(10));
-                        dialog.add(descriptionLabel);
-                        dialog.add(Box.createVerticalStrut(20));
+                    dialog.add(Box.createVerticalStrut(10));
+                    dialog.add(descriptionLabel);
+                    dialog.add(Box.createVerticalStrut(20));
 
-                        dialog.setVisible(true);
+                    // Botón eliminar tarea
+                    JButton deleteButton = new JButton("Eliminar tarea");
+                    deleteButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    deleteButton.addActionListener(ev -> {
+                        int confirm = JOptionPane.showConfirmDialog(dialog,
+                                "¿Seguro que quieres eliminar esta tarea?",
+                                "Confirmar eliminación",
+                                JOptionPane.YES_NO_OPTION);
+                        if (confirm == JOptionPane.YES_OPTION) {
+                            try {
+                                // Volvemos a cargar la lista desde almacenamiento
+                                List<Task> currentTasks = TaskStorage.loadTasks();
+                                currentTasks.removeIf(t ->
+                                        t.getTitle().equals(task.getTitle()) &&
+                                                t.getDescription().equals(task.getDescription()) &&
+                                                t.getDay().equals(task.getDay())
+                                );
+                                TaskStorage.saveTasks(currentTasks);
+                                refreshTasks(); // refrescamos calendario
+                                dialog.dispose();
+                            } catch (Exception ex) {
+                                JOptionPane.showMessageDialog(this,
+                                        "Error al eliminar la tarea: " + ex.getMessage(),
+                                        "Error",
+                                        JOptionPane.ERROR_MESSAGE);
+                            }
+                        }
                     });
 
-                    dayPanels[index].add(Box.createVerticalStrut(5));
-                    dayPanels[index].add(taskButton);
-                }
+                    dialog.add(deleteButton);
+
+                    dialog.setVisible(true);
+                });
+
+                dayPanels[index].add(Box.createVerticalStrut(5));
+                dayPanels[index].add(taskButton);
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
@@ -97,9 +126,6 @@ public class Calendar extends JFrame {
                     JOptionPane.ERROR_MESSAGE);
         }
     }
-
-
-
 
 
     public void refreshTasks() {

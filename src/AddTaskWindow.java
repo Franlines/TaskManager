@@ -48,20 +48,16 @@ public class AddTaskWindow extends JFrame {
         }
         formPanel.add(daysPanel);
 
-        // Checkbox para repetir
-        loopCheckbox = new JCheckBox("Repetir todas las semanas");
-        formPanel.add(loopCheckbox);
-
         mainPanel.add(formPanel, BorderLayout.CENTER);
 
         // Botón crear
         JButton createButton = new JButton("Crear Tarea");
         createButton.addActionListener((ActionEvent e) -> {
-            Task newTask = createTaskFromForm();
-            if (newTask != null) {
+            List<Task> newTasks = createTasksFromForm();
+            if (newTasks != null && !newTasks.isEmpty()) {
                 try {
                     List<Task> tasks = TaskStorage.loadTasks();
-                    tasks.add(newTask);
+                    tasks.addAll(newTasks); // añadimos todas
                     TaskStorage.saveTasks(tasks);
 
                     // Actualizar el calendario
@@ -70,7 +66,7 @@ public class AddTaskWindow extends JFrame {
                     }
 
                     JOptionPane.showMessageDialog(AddTaskWindow.this,
-                            "Tarea creada y guardada:\n" + newTask,
+                            "Tareas creadas y guardadas:\n" + newTasks,
                             "Éxito",
                             JOptionPane.INFORMATION_MESSAGE);
                     dispose();
@@ -90,7 +86,7 @@ public class AddTaskWindow extends JFrame {
         add(mainPanel);
     }
 
-    private Task createTaskFromForm() {
+    private List<Task> createTasksFromForm() {
         String title = titleField.getText().trim();
         String description = descriptionArea.getText().trim();
 
@@ -99,22 +95,23 @@ public class AddTaskWindow extends JFrame {
             return null;
         }
 
-        // Recoger días seleccionados
-        Set<DayOfWeek> selectedDays = new HashSet<>();
+        List<Task> newTasks = new ArrayList<>();
         DayOfWeek[] days = DayOfWeek.values();
+
+        boolean inLoop = loopCheckbox.isSelected();
+
         for (int i = 0; i < dayCheckboxes.length; i++) {
             if (dayCheckboxes[i].isSelected()) {
-                selectedDays.add(days[i]);
+                // una tarea por cada día seleccionado
+                newTasks.add(new Task(title, description, days[i]));
             }
         }
 
-        if (selectedDays.isEmpty()) {
+        if (newTasks.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Debes seleccionar al menos un día", "Error", JOptionPane.ERROR_MESSAGE);
             return null;
         }
 
-        boolean inLoop = loopCheckbox.isSelected();
-
-        return new Task(title, description, selectedDays, inLoop);
+        return newTasks;
     }
 }
