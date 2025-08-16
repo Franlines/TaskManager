@@ -10,7 +10,6 @@ public class AddTaskWindow extends JFrame {
     private JTextField titleField;
     private JTextArea descriptionArea;
     private JCheckBox[] dayCheckboxes;
-    private JCheckBox loopCheckbox;
     private Calendar calendar; // referencia al calendario
 
     public AddTaskWindow(Calendar calendar) {
@@ -79,8 +78,6 @@ public class AddTaskWindow extends JFrame {
             }
         });
 
-
-
         mainPanel.add(createButton, BorderLayout.SOUTH);
 
         add(mainPanel);
@@ -98,12 +95,10 @@ public class AddTaskWindow extends JFrame {
         List<Task> newTasks = new ArrayList<>();
         DayOfWeek[] days = DayOfWeek.values();
 
-        boolean inLoop = loopCheckbox.isSelected();
-
         for (int i = 0; i < dayCheckboxes.length; i++) {
             if (dayCheckboxes[i].isSelected()) {
                 // una tarea por cada día seleccionado
-                newTasks.add(new Task(title, description, days[i]));
+                newTasks.add(new Task(title, description, days[i], false));
             }
         }
 
